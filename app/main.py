@@ -6,6 +6,7 @@ from app.routes import users, doctors, chat
 from typing import Dict
 import datetime
 import json
+import os # ضفنا دي عشان نقرأ البورت من Render
 
 app = FastAPI(
     title="Staqem API 🩺",
@@ -13,16 +14,25 @@ app = FastAPI(
     version="1.2.0"
 )
 
-# --- 1. إعداد الـ CORS (مهم جداً للـ WebSocket) ---
+# --- 1. إعداد الـ CORS المطور ---
+# خلينها مصفوفة عشان لو حبيت تضيف دومين Netlify بتاعك بعدين بسهولة
+origins = [
+    "http://localhost:5173",          # جهازك (Vite)
+    "http://127.0.0.1:5173",        # جهازك
+    "https://*.netlify.app",        # أي موقع فرعي من نتليفاي
+    "*"                              # سماح لكل المصادر (للتجربة الأولية)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # في الإنتاج يفضل تحديد الدومين
+    allow_origins=["*"], # خليه نجمة دلوقتي عشان أول رفعة تنجح 100%
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- 2. مدير الاتصالات اللحظية (WebSocket Manager) ---
+# --- [باقي الكود بتاع الـ ConnectionManager والـ Scheduler زي ما هو بالظبط] ---
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Dict[str, WebSocket] = {}
@@ -43,8 +53,7 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# --- 3. وظائف الجدولة (Scheduled Tasks) ---
-
+# --- وظائف الجدولة ---
 async def reset_daily_exercises():
     try:
         db = get_db()
@@ -74,7 +83,7 @@ async def check_reminders():
     except Exception as e:
         print(f"❌ [Error] Reminder task failed: {e}")
 
-# --- 4. أحداث التشغيل ---
+# --- أحداث التشغيل ---
 @app.on_event("startup")
 async def startup_event():
     await test_db_connection()
@@ -84,18 +93,15 @@ async def startup_event():
     scheduler.start()
     print("⏰ [Scheduler] Background jobs active.")
 
-# --- 5. الـ WebSocket Endpoint للشات والاشعارات ---
+# --- الـ WebSocket Endpoint ---
 @app.websocket("/ws/{email}")
 async def websocket_endpoint(websocket: WebSocket, email: str):
     await manager.connect(email, websocket)
     try:
         while True:
-            # استقبال البيانات كـ JSON مباشرة (أفضل وأسرع)
             data = await websocket.receive_json()
-            
             if data.get("type") == "CHAT":
                 receiver_email = data.get("receiver_email")
-                # توجيه الرسالة للمستلم فوراً
                 await manager.send_personal_message({
                     "type": "NEW_MESSAGE",
                     "sender_email": email,
@@ -103,7 +109,6 @@ async def websocket_endpoint(websocket: WebSocket, email: str):
                     "created_at": datetime.datetime.now().isoformat()
                 }, receiver_email)
                 print(f"📩 [Chat] From {email} to {receiver_email}")
-
     except WebSocketDisconnect:
         manager.disconnect(email)
     except Exception as e:
