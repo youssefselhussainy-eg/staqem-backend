@@ -3,7 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 
 async def seed_exercises():
     # 1. الـ URI الخاص بك (يفضل مستقبلاً وضعه في ملف .env)
-    uri = "mongodb+srv://staqemprojectacc_db_user:7MbjbrjllbWk1mh7@staqem-project.daxntmu.mongodb.net/?appName=staqem-project"
+    uri = "mongodb+srv://staqem_admin:staqem1042026@staqem.393jjgr.mongodb.net/staqem?retryWrites=true&w=majority&appName=Staqem"
     client = AsyncIOMotorClient(uri)
     
     # 2. تحديد الداتا بيز
